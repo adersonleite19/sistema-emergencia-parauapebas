@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Geoprocessamento Web</title>
+    <!-- CSS do Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+        }
+        #painel {
+            width: 340px;
+            background: #1e1e2f;
+            color: #ffffff;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        h2 {
+            margin-top: 0;
+            font-size: 1.3rem;
+            color: #4db8ff;
+            border-bottom: 1px solid #33334d;
+            padding-bottom: 10px;
+        }
+        .card-distancia {
+            background: #2a2a40;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .card-distancia span {
+            display: block;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #00e676;
+            margin-top: 5px;
+        }
+        .lista-modais {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .lista-modais li {
+            background: #2a2a40;
+            margin-bottom: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-nome {
+            font-weight: bold;
+        }
+        .modal-vel {
+            font-size: 0.8rem;
+            color: #a0a0b8;
+        }
+        .modal-tempo {
+            font-weight: bold;
+            color: #4db8ff;
+        }
+        #mapa {
+            flex: 1;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="painel">
+        <h2>Rota e Geoprocessamento</h2>
+        <div class="card-distancia">
+            Distância Vetorial
+            <span id="valor-distancia">Calculando...</span>
+        </div>
+        <h3>Estimativa por Modal</h3>
+        <ul class="lista-modais" id="lista-modais">
+            <li>Carregando dados do PostGIS...</li>
+        </ul>
+    </div>
+
+    <div id="mapa"></div>
+
+    <!-- JS do Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Inicializa o mapa
+        const mapa = L.map('mapa').setView([-6.067, -49.902], 13);
+
+        // Adiciona o mapa base do OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(mapa);
+
+        // Busca os dados da API Python (/api/rota)
+        fetch('/api/rota')
+            .then(response => response.json())
+            .then(dados => {
+                if (dados.erro) {
+                    alert('Erro do servidor: ' + dados.erro);
+                    return;
+                }
+
+                // Atualiza o painel lateral com a distância
+                document.getElementById('valor-distancia').innerText = dados.distancia_km + ' km';
+
+                // Preenche a lista de tempos por modal
+                const lista = document.getElementById('lista-modais');
+                lista.innerHTML = '';
+                dados.estimativas.forEach(item => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <div>
+                            <div class="modal-nome">${item.modal}</div>
+                            <div class="modal-vel">Média: ${item.velocidade} km/h</div>
+                        </div>
+                        <div class="modal-tempo">${item.minutos} min</div>
+                    `;
+                    lista.appendChild(li);
+                });
+
+                // Coordenadas para o Leaflet [latitude, longitude]
+                const coordFaculdade = [dados.faculdade.lat, dados.faculdade.lon];
+                const coordCasa = [dados.casa.lat, dados.casa.lon];
+
+                // Adiciona marcadores no mapa
+                L.marker(coordFaculdade).addTo(mapa)
+                    .bindPopup('<b>Faculdade</b><br>Ponto de origem').openPopup();
+
+                L.marker(coordCasa).addTo(mapa)
+                    .bindPopup('<b>Casa</b><br>Ponto de destino');
+
+                // Desenha a linha vetorial conectando os dois pontos
+                const linhaRota = L.polyline([coordFaculdade, coordCasa], {
+                    color: '#0066ff',
+                    weight: 4,
+                    dashArray: '8, 8'
+                }).addTo(mapa);
+
+                // Ajusta o zoom automaticamente para enquadrar os dois pontos
+                mapa.fitBounds(linhaRota.getBounds(), { padding: [50, 50] });
+            })
+            .catch(erro => {
+                console.error('Erro ao buscar dados:', erro);
+                document.getElementById('valor-distancia').innerText = 'Erro';
+            });
+    </script>
+</body>
+</html>

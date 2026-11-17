@@ -1,0 +1,76 @@
+{
+    "bombeiros": [
+        {
+            "nome": "Quartel Central de Bombeiros",
+            "rua": "Rua Principal",
+            "referencia": "Próximo à Praça Central",
+            "lat": -6.075421,
+            "lon": -49.884724
+        },
+        {
+            "nome": "Base Avançada 23° Batalhão",
+            "rua": "Av. dos Ipês",
+            "referencia": "Esquina com o Ginásio",
+            "lat": -6.071065,
+            "lon": -49.900138
+        }
+    ],
+    "hospitais": [
+        {
+            "nome": "Hospital Municipal de Parauapebas",
+            "leitos": 120,
+            "rua": "Rua F",
+            "referencia": "Perto do Bairro Cidade Nova",
+            "lat": -6.062862,
+            "lon": -49.909038
+        },
+        {
+            "nome": "Hospital Geral de Parauapebas - HGP",
+            "leitos": 80,
+            "rua": "Rodovia PA-275",
+            "referencia": "Área Institucional",
+            "lat": -6.062449,
+            "lon": -49.909876
+        },
+        {
+            "nome": "UPA 24H",
+            "leitos": 80,
+            "rua": "Av. Principal",
+            "referencia": "Próximo ao Posto Fiscal",
+            "lat": -6.083129,
+            "lon": -49.851315
+        }
+    ],
+    "ocorrencias": [
+        {
+            "id": 1,
+            "descricao": "Edificação com danos estruturais - Bairro Tropical",
+            "severidade": "Alta",
+            "lat": -6.026349,
+            "lon": -49.888576,
+            "horario": "16/11/2026 21:00",
+            "rua": "Rua das Palmeiras",
+            "referencia": "Próximo ao mercado local"
+        },
+        {
+            "id": 2,
+            "descricao": "Deslizamento - Bairro São Lucas II",
+            "severidade": "Crítica",
+            "lat": -6.108045,
+            "lon": -49.89867,
+            "horario": "16/11/2026 21:15",
+            "rua": "Rua do Sol",
+            "referencia": "Área de encosta"
+        },
+        {
+            "id": 3,
+            "descricao": "Acidente - Bairro Serra Grande",
+            "severidade": "Moderado",
+            "lat": -6.055461,
+            "lon": -49.846358,
+            "horario": "16/11/2026 21:30",
+            "rua": "Av Maringá",
+            "referencia": "Cruzamento principal"
+        }
+    ]
+}

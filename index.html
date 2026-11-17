@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geoprocessamento - Parauapebas</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+        }
+        #painel {
+            width: 360px;
+            background: #1e1e2f;
+            color: #ffffff;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: #4db8ff;
+            border-bottom: 1px solid #33334d;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: #a0a0b8;
+            margin-bottom: 5px;
+        }
+        select, button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            background: #2a2a40;
+            color: #ffffff;
+            font-size: 0.95rem;
+        }
+        select {
+            cursor: pointer;
+        }
+        button {
+            background: #0066ff;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #0052cc;
+        }
+        .card-distancia {
+            background: #2a2a40;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        .card-distancia span {
+            display: block;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00e676;
+            margin-top: 5px;
+        }
+        .lista-modais {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .lista-modais li {
+            background: #2a2a40;
+            margin-bottom: 8px;
+            padding: 10px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-nome {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .modal-vel {
+            font-size: 0.75rem;
+            color: #a0a0b8;
+        }
+        .modal-tempo {
+            font-weight: bold;
+            color: #4db8ff;
+        }
+        .popup-btn {
+            display: block;
+            width: 100%;
+            margin-top: 6px;
+            padding: 6px 10px;
+            background: #0066ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        .popup-btn.destino {
+            background: #ff9800;
+        }
+        #mapa {
+            flex: 1;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="painel">
+        <h2>Seletor de Rotas - Parauapebas</h2>
+        
+        <div class="form-group">
+            <label for="select-origem">Origem:</label>
+            <select id="select-origem" onchange="carregarRota()"></select>
+        </div>
+
+        <div class="form-group">
+            <label for="select-destino">Destino:</label>
+            <select id="select-destino" onchange="carregarRota()"></select>
+        </div>
+
+        <button onclick="carregarRota()">Calcular Rota</button>
+
+        <div class="card-distancia">
+            Distância Vetorial
+            <span id="valor-distancia">--</span>
+        </div>
+
+        <h3>Estimativa por Modal</h3>
+        <ul class="lista-modais" id="lista-modais">
+            <li>Selecione os locais para ver as estimativas</li>
+        </ul>
+    </div>
+
+    <div id="mapa"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Centralizado fixo em Parauapebas [-6.067, -49.902]
+        const mapa = L.map('mapa').setView([-6.067, -49.902], 14);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(mapa);
+
+        let listaLocaisGlobal = [];
+        let camadaRota = null;
+        let marcadoresLayer = L.layerGroup().addTo(mapa);
+
+        function carregarLocais() {
+            fetch('/api/locais')
+                .then(res => res.json())
+                .then(locais => {
+                    listaLocaisGlobal = locais;
+                    const selOrigem = document.getElementById('select-origem');
+                    const selDestino = document.getElementById('select-destino');
+                    
+                    selOrigem.innerHTML = '';
+                    selDestino.innerHTML = '';
+
+                    locais.forEach((local, index) => {
+                        const opt1 = document.createElement('option');
+                        opt1.value = local.nome;
+                        opt1.text = local.nome;
+                        selOrigem.appendChild(opt1);
+
+                        const opt2 = document.createElement('option');
+                        opt2.value = local.nome;
+                        opt2.text = local.nome;
+                        if (index === 1 && locais.length > 1) opt2.selected = true;
+                        selDestino.appendChild(opt2);
+                    });
+
+                    desenharMarcadoresNoMapa();
+
+                    if (locais.length >= 2) {
+                        carregarRota();
+                    }
+                })
+                .catch(err => console.error('Erro ao carregar locais:', err));
+        }
+
+        function desenharMarcadoresNoMapa() {
+            marcadoresLayer.clearLayers();
+
+            listaLocaisGlobal.forEach(local => {
+                const popupContent = `
+                    <div style="text-align: center;">
+                        <b>${local.nome}</b><br>
+                        <button class="popup-btn" onclick="definirPonto('${local.nome}', 'origem')">Definir como Origem</button>
+                        <button class="popup-btn destino" onclick="definirPonto('${local.nome}', 'destino')">Definir como Destino</button>
+                    </div>
+                `;
+
+                const marker = L.marker([local.lat, local.lon]).bindPopup(popupContent);
+                marcadoresLayer.addLayer(marker);
+            });
+        }
+
+        window.definirPonto = function(nomeLocal, tipo) {
+            if (tipo === 'origem') {
+                document.getElementById('select-origem').value = nomeLocal;
+            } else {
+                document.getElementById('select-destino').value = nomeLocal;
+            }
+            mapa.closePopup();
+            carregarRota();
+        };
+
+        function carregarRota() {
+            const origem = document.getElementById('select-origem').value;
+            const destino = document.getElementById('select-destino').value;
+
+            if (!origem || !destino) return;
+            if (origem === destino) {
+                document.getElementById('valor-distancia').innerText = '0 km';
+                document.getElementById('lista-modais').innerHTML = '<li>Origem e destino são o mesmo local.</li>';
+                if (camadaRota) mapa.removeLayer(camadaRota);
+                return;
+            }
+
+            fetch(`/api/rota?origem=${encodeURIComponent(origem)}&destino=${encodeURIComponent(destino)}`)
+                .then(res => res.json())
+                .then(dados => {
+                    if (dados.erro) {
+                        alert(dados.erro);
+                        return;
+                    }
+
+                    document.getElementById('valor-distancia').innerText = dados.distancia_km + ' km';
+
+                    const lista = document.getElementById('lista-modais');
+                    lista.innerHTML = '';
+                    dados.estimativas.forEach(item => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `
+                            <div>
+                                <div class="modal-nome">${item.modal}</div>
+                                <div class="modal-vel">Média: ${item.velocidade} km/h</div>
+                            </div>
+                            <div class="modal-tempo">${item.minutos} min</div>
+                        `;
+                        lista.appendChild(li);
+                    });
+
+                    if (camadaRota) mapa.removeLayer(camadaRota);
+
+                    const coordOrigem = [dados.origem.lat, dados.origem.lon];
+                    const coordDestino = [dados.destino.lat, dados.destino.lon];
+
+                    camadaRota = L.polyline([coordOrigem, coordDestino], {
+                        color: '#0066ff',
+                        weight: 5,
+                        dashArray: '8, 8'
+                    }).addTo(mapa);
+
+                    mapa.fitBounds(camadaRota.getBounds(), { padding: [50, 50] });
+                })
+                .catch(err => console.error('Erro ao calcular rota:', err));
+        }
+
+        carregarLocais();
+    </script>
+</body>
+</html>

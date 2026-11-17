@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Resposta Pós-Sismo - Parauapebas</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- IMPORTANTE: Biblioteca de ícones UIcons/Flaticon -->
+    <link rel='stylesheet' href='https://cdn-uicons.flaticon.com/uicons-bold-rounded/css/uicons-bold-rounded.css'>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; }
+        #painel { width: 420px; background: #1a1a2e; color: #ffffff; padding: 20px; box-sizing: border-box; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.4); z-index: 1000; }
+        h2 { margin-top: 0; font-size: 1.1rem; color: #ff5252; border-bottom: 1px solid #33334d; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .btn-topo { background: #00e676; color: #12121f; border: none; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; cursor: pointer; text-decoration: none; }
+        .card-info { background: #252542; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem; line-height: 1.4; }
+        .lista-ocorrencias { list-style: none; padding: 0; margin: 0; }
+        .ocorrencia-item { background: #252542; margin-bottom: 12px; padding: 12px; border-radius: 6px; font-size: 0.85rem; border-left: 4px solid #ff5252; position: relative; }
+        .ocorrencia-conteudo { cursor: pointer; }
+        .detalhes-resposta { margin-top: 8px; font-size: 0.8rem; color: #00e676; border-top: 1px dashed #33334d; padding-top: 6px; }
+        .btn-remover { margin-top: 8px; background: #ff5252; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
+        .btn-remover:hover { background: #ff3333; }
+        #mapa { flex: 1; height: 100%; }
+
+        /* Estilo visual para os pinos com ícones do UIcons */
+        .pin-mapa {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            color: white;
+            font-size: 14px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+            border: 2px solid white;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="painel">
+        <h2>
+            Painel Pós-Sismo
+            <a href="/cadastro.html" class="btn-topo">+ Nova Ocorrência</a>
+        </h2>
+        
+        <div class="card-info">
+            <strong>Legenda do Mapa:</strong><br>
+            <i class="fi fi-br-shield" style="color: #ff3d00;"></i> Bombeiros (Batalhão)<br>
+            <i class="fi fi-br-hospital" style="color: #d32f2f;"></i> Hospitais<br>
+            <i class="fi fi-br-marker" style="color: #ff5252;"></i> Ocorrências
+        </div>
+
+        <h3>Ocorrências Registradas</h3>
+        <ul class="lista-ocorrencias" id="lista-ocorrencias">
+            <li>Carregando dados...</li>
+        </ul>
+    </div>
+
+    <div id="mapa"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const mapa = L.map('mapa').setView([-6.067, -49.902], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(mapa);
+
+        let dadosGlobais = null;
+        let camadaDinamica = L.layerGroup().addTo(mapa);
+        let linhaRotaAtiva = null;
+
+        // Ícones utilizando as classes do UIcons (Flaticon)
+        const iconeBombeiro = L.divIcon({
+            className: 'custom-icon',
+            html: '<div class="pin-mapa" style="background-color: #4A0000;"><i class="fi fi-br-shield"></i></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        const iconeHospital = L.divIcon({
+            className: 'custom-icon',
+            html: '<div class="pin-mapa" style="background-color: #d32f2f;"><i class="fi fi-br-hospital"></i></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        const iconeOcorrencia = L.divIcon({
+            className: 'custom-icon',
+            html: '<div class="pin-mapa" style="background-color: #000000;"><i class="fi fi-br-exclamation"></i></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        function carregarDados() {
+            fetch('/api/emergencia')
+                .then(res => res.json())
+                .then(dados => {
+                    dadosGlobais = dados;
+                    desenharElementosFixos();
+                    preencherListaOcorrencias();
+                })
+                .catch(err => console.error('Erro ao carregar dados:', err));
+        }
+
+        function desenharElementosFixos() {
+            camadaDinamica.clearLayers();
+            if (!dadosGlobais) return;
+
+            dadosGlobais.hospitais.forEach(h => {
+                L.marker([h.lat, h.lon], {icon: iconeHospital}).addTo(camadaDinamica)
+                    .bindPopup(`<b> Hospital:</b> ${h.nome}<br><b>Leitos:</b> ${h.leitos}<br><b>Rua:</b> ${h.rua || 'N/D'}<br><b>Ref:</b> ${h.referencia || 'N/D'}`);
+            });
+
+            dadosGlobais.bombeiros.forEach(b => {
+                L.marker([b.lat, b.lon], {icon: iconeBombeiro}).addTo(camadaDinamica)
+                    .bindPopup(`<b> Quartel:</b> ${b.nome}<br><b>Rua:</b> ${b.rua || 'N/D'}<br><b>Ref:</b> ${b.referencia || 'N/D'}`);
+            });
+
+            dadosGlobais.ocorrencias.forEach(o => {
+                const marker = L.marker([o.lat, o.lon], {icon: iconeOcorrencia}).addTo(camadaDinamica)
+                    .bindPopup(`<b> Ocorrência:</b> ${o.descricao}<br><b>Severidade:</b> ${o.severidade}<br><b>Rua:</b> ${o.rua || 'N/D'}<br><b>Ref:</b> ${o.referencia || 'N/D'}<br><b>Horário:</b> ${o.horario || 'N/D'}`);
+                o._markerRef = marker;
+            });
+        }
+
+        function preencherListaOcorrencias() {
+            const lista = document.getElementById('lista-ocorrencias');
+            lista.innerHTML = '';
+
+            if (!dadosGlobais.ocorrencias || dadosGlobais.ocorrencias.length === 0) {
+                lista.innerHTML = '<li>Nenhuma ocorrência registrada.</li>';
+                return;
+            }
+
+            dadosGlobais.ocorrencias.forEach(o => {
+                const li = document.createElement('li');
+                li.className = 'ocorrencia-item';
+                li.innerHTML = `
+                    <div class="ocorrencia-conteudo">
+                        <strong>${o.descricao}</strong><br>
+                        <small>Severidade: ${o.severidade} |  ${o.horario || 'N/D'}</small><br>
+                        <small> <b>Rua:</b> ${o.rua || 'N/D'} | <b>Ref:</b> ${o.referencia || 'N/D'}</small>
+                        <div class="detalhes-resposta" id="resp-${o.id}">Clique para calcular socorro</div>
+                    </div>
+                    <button class="btn-remover" onclick="removerOcorrencia(${o.id})">Remover do Mapa</button>
+                `;
+
+                li.querySelector('.ocorrencia-conteudo').onclick = () => selecionarOcorrencia(o);
+                lista.appendChild(li);
+            });
+        }
+
+        function selecionarOcorrencia(ocorrencia) {
+            mapa.setView([ocorrencia.lat, ocorrencia.lon], 15);
+            if (ocorrencia._markerRef) ocorrencia._markerRef.openPopup();
+
+            let unidades = [];
+            dadosGlobais.hospitais.forEach(h => unidades.push({nome: h.nome, tipo: 'Hospital', lat: h.lat, lon: h.lon}));
+            dadosGlobais.bombeiros.forEach(b => unidades.push({nome: b.nome, tipo: 'Bombeiros', lat: b.lat, lon: b.lon}));
+
+            if (unidades.length === 0) return;
+
+            let maisProxima = unidades[0];
+            let menorDistancia = calcularDistanciaKm(ocorrencia.lat, ocorrencia.lon, maisProxima.lat, maisProxima.lon);
+
+            for (let i = 1; i < unidades.length; i++) {
+                let dist = calcularDistanciaKm(ocorrencia.lat, ocorrencia.lon, unidades[i].lat, unidades[i].lon);
+                if (dist < menorDistancia) {
+                    menorDistancia = dist;
+                    maisProxima = unidades[i];
+                }
+            }
+
+            const tempoMinutos = (menorDistancia / 50) * 60;
+            const divResp = document.getElementById(`resp-${ocorrencia.id}`);
+            divResp.innerHTML = ` Mais próximo: <b>${maisProxima.nome}</b><br> <b>${menorDistancia.toFixed(2)} km</b> | ⏱️>${tempoMinutos.toFixed(1)} min</b>`;
+
+            if (linhaRotaAtiva) mapa.removeLayer(linhaRotaAtiva);
+            linhaRotaAtiva = L.polyline([[maisProxima.lat, maisProxima.lon], [ocorrencia.lat, ocorrencia.lon]], { color: '#ff5252', weight: 4, dashArray: '6, 6' }).addTo(mapa);
+        }
+
+        async function removerOcorrencia(id) {
+            if (!confirm("Deseja realmente remover esta ocorrência do sistema?")) return;
+            try {
+                const res = await fetch('/api/remover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                if (res.ok) {
+                    if (linhaRotaAtiva) { mapa.removeLayer(linhaRotaAtiva); linhaRotaAtiva = null; }
+                    carregarDados();
+                } else {
+                    alert('Erro ao remover ocorrência.');
+                }
+            } catch (err) {
+                alert('Erro de conexão ao tentar remover.');
+            }
+        }
+
+        function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
+        carregarDados();
+    </script>
+</body>
+</html>
