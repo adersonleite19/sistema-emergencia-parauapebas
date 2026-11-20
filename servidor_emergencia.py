@@ -121,6 +121,7 @@ class ServidorEmergenciaHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 if __name__ == '__main__':
-    servidor = HTTPServer(('0.0.0.0', 8001), ServidorEmergenciaHandler)
-    print("Servidor de Emergencia com Persistência rodando em http://0.0.0.0:8001")
+    porta = int(os.environ.get("PORT", 8001))
+    servidor = HTTPServer(('0.0.0.0', porta), ServidorEmergenciaHandler)
+    print(f"Servidor de Emergencia com Persistência rodando na porta {porta}...")
     servidor.serve_forever()
